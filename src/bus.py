@@ -12,7 +12,7 @@ import pandas_gbq as gbq
 # =========================================================================== #
 
 BASE_URL = 'https://olhovivo.sptrans.com.br/'
-EXPORT_COLUMNS = ['line_display', 'line_code', 'line_direction', 'bus_prefix', 'is_accessible', 'timestamp', 'lat', 'lon']
+EXPORT_COLUMNS = ['route_id', 'trip_code', 'direction_id', 'bus_prefix', 'is_accessible', 'timestamp', 'lat', 'lon']
 
 # --------------------------------------------------------------------------- #
 
@@ -43,7 +43,7 @@ def _request(session) -> pd.DataFrame:
 # --------------------------------------------------------------------------- #
 
 def format(info_df: pd.DataFrame, export_columns: list) -> pd.DataFrame:
-    info_df.columns = ['line_display', 'line_code', 'line_direction', 'to', 'from', 'bus_count', 'buses']
+    info_df.columns = ['route_id', 'trip_code', 'direction_id', 'to', 'from', 'bus_count', 'buses']
 
     buses_df = info_df.explode('buses').reset_index(drop=True)
 
@@ -79,5 +79,10 @@ def main():
     info_df = format(info_df, EXPORT_COLUMNS)
 
     upload(info_df)
+
+# --------------------------------------------------------------------------- #
+
+if __name__ == '__main__':
+    main()
 
 # =========================================================================== #
