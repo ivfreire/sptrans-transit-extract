@@ -2,12 +2,15 @@
 #   Extracts data from Olho Aberto API.
 #   ===================================
 
+import json
 import requests
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import pandas_gbq as gbq
+
+from google.cloud import pubsub_v1
 
 # =========================================================================== #
 
@@ -42,16 +45,32 @@ def _request(session) -> pd.DataFrame:
 
 # --------------------------------------------------------------------------- #
 
-def format(info_df: pd.DataFrame, export_columns: list) -> pd.DataFrame:
+def format(info_df: pd.DataFrame) -> pd.DataFrame:
     info_df.columns = ['route_id', 'trip_code', 'direction_id', 'to', 'from', 'bus_count', 'buses']
 
-    buses_df = info_df.explode('buses').reset_index(drop=True)
+    trips_df = info_df.explode('buses').reset_index(drop=True)
+    trips_df['trip_id'] = trips_df['route_id'].astype(str) + '-' + (trips_df['direction_id'] - 1).astype(str)
 
-    bus_info_df = pd.json_normalize(buses_df['buses'])
+    return trips_df
+
+# --------------------------------------------------------------------------- #
+
+def send_pubsub(trips_df: pd.DataFrame) -> None:
+    publisher = pubsub_v1.PublisherClient()
+    topic_path = publisher.topic_path('sptransit', 'sptrans-transit-positions')
+
+    data = json.dumps(trips_df[['trip_id', 'bus_count', 'buses']].to_dict())
+
+    publisher.publish(topic_path, data.encode('ASCII'))
+
+# --------------------------------------------------------------------------- #
+
+def extract_bus(trips_df: pd.DataFrame, export_columns: list) -> pd.DataFrame:
+    bus_info_df = pd.json_normalize(trips_df['buses'])
     bus_info_df.columns = ['bus_prefix', 'b', 'is_accessible', 'timestamp', 'lat', 'lon', 'sv', 'is']
 
     bus_info_df = pd.concat([
-        buses_df.drop(columns=['buses']),
+        trips_df.drop(columns=['buses']),
         bus_info_df
     ], axis=1)
 
@@ -76,7 +95,11 @@ def main():
     session = create_session()
 
     info_df = _request(session)
-    info_df = format(info_df, EXPORT_COLUMNS)
+    info_df = format(info_df)
+
+    send_pubsub(info_df)
+
+    info_df = extract_bus(info_df, EXPORT_COLUMNS)
 
     upload(info_df)
 
