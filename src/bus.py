@@ -15,7 +15,8 @@ from google.cloud import pubsub_v1
 # =========================================================================== #
 
 BASE_URL = 'https://olhovivo.sptrans.com.br/'
-EXPORT_COLUMNS = ['route_id', 'trip_code', 'direction_id', 'bus_prefix', 'is_accessible', 'timestamp', 'lat', 'lon']
+EXPORT_COLUMNS = ['ingestion_time', 'route_id', 'trip_code', 'direction_id',
+                  'bus_prefix', 'is_accessible', 'timestamp', 'lat', 'lon']
 
 # --------------------------------------------------------------------------- #
 
@@ -55,16 +56,6 @@ def format(info_df: pd.DataFrame) -> pd.DataFrame:
 
 # --------------------------------------------------------------------------- #
 
-def send_pubsub(trips_df: pd.DataFrame) -> None:
-    publisher = pubsub_v1.PublisherClient()
-    topic_path = publisher.topic_path('sptransit', 'sptrans-transit-positions')
-
-    data = json.dumps(trips_df[['trip_id', 'bus_count', 'buses']].to_dict())
-
-    publisher.publish(topic_path, data.encode('ASCII'))
-
-# --------------------------------------------------------------------------- #
-
 def extract_bus(trips_df: pd.DataFrame, export_columns: list) -> pd.DataFrame:
     bus_info_df = pd.json_normalize(trips_df['buses'])
     bus_info_df.columns = ['bus_prefix', 'b', 'is_accessible', 'timestamp', 'lat', 'lon', 'sv', 'is']
@@ -77,7 +68,20 @@ def extract_bus(trips_df: pd.DataFrame, export_columns: list) -> pd.DataFrame:
     bus_info_df['timestamp'] = pd.to_datetime(bus_info_df['timestamp'])
     bus_info_df['ingestion_time'] = datetime.utcnow()
 
-    return bus_info_df[['ingestion_time'] + export_columns]
+    return bus_info_df
+
+# --------------------------------------------------------------------------- #
+
+def send_pubsub(buses_df: pd.DataFrame) -> None:
+    publisher = pubsub_v1.PublisherClient()
+    topic_path = publisher.topic_path('sptransit', 'sptrans-transit-positions')
+
+    data = buses_df[['trip_id', 'bus_prefix', 'lat', 'lon', 'timestamp']]
+    data['timestamp'] = data['timestamp'].dt.strftime('%Y-%m-%dT%H:%M:%S')
+
+    data = json.dumps(data.to_dict())
+    publisher.publish(topic_path, data.encode('ASCII'))
+
 
 # --------------------------------------------------------------------------- #
 
@@ -96,12 +100,10 @@ def main():
 
     info_df = _request(session)
     info_df = format(info_df)
-
-    send_pubsub(info_df)
-
     info_df = extract_bus(info_df, EXPORT_COLUMNS)
 
-    upload(info_df)
+    send_pubsub(info_df)
+    upload(info_df[EXPORT_COLUMNS])
 
 # --------------------------------------------------------------------------- #
 
