@@ -17,6 +17,7 @@ from google.cloud import pubsub_v1
 BASE_URL = 'https://olhovivo.sptrans.com.br/'
 EXPORT_COLUMNS = ['ingestion_time', 'route_id', 'trip_code', 'direction_id',
                   'bus_prefix', 'is_accessible', 'timestamp', 'lat', 'lon']
+SHARDS_COUNT = 10
 
 # --------------------------------------------------------------------------- #
 
@@ -76,12 +77,18 @@ def send_pubsub(buses_df: pd.DataFrame) -> None:
     publisher = pubsub_v1.PublisherClient()
     topic_path = publisher.topic_path('sptransit', 'sptrans-transit-positions')
 
-    data = buses_df[['trip_id', 'bus_prefix', 'lat', 'lon', 'timestamp']]
-    data['timestamp'] = data['timestamp'].dt.strftime('%Y-%m-%dT%H:%M:%S')
+    def send(sliced_df: pd.DataFrame) -> None:
+        data = sliced_df[['trip_id', 'bus_prefix', 'lat', 'lon', 'timestamp']]
+        data['timestamp'] = data['timestamp'].dt.strftime('%Y-%m-%dT%H:%M:%S')
+        data = json.dumps(data.to_dict())
 
-    data = json.dumps(data.to_dict())
-    publisher.publish(topic_path, data.encode('ASCII'))
+        print(f"Publishing to {topic_path}: {len(data)} bytes")
+        publisher.publish(topic_path, data.encode('ASCII'))
 
+    shards = np.array_split(buses_df, SHARDS_COUNT)
+
+    for shard in shards:
+        send(shard)
 
 # --------------------------------------------------------------------------- #
 
