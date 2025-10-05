@@ -95,7 +95,7 @@ def send_pubsub(buses_df: pd.DataFrame) -> None:
 def upload(info_df: pd.DataFrame) -> None:
     gbq.to_gbq(
         info_df,
-        destination_table='sptransit.transit.bus_position',
+        destination_table='sptransit.transit.bus_position_v2',
         project_id='sptransit',
         if_exists='append'
     )
