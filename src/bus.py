@@ -57,7 +57,7 @@ def _format(info_df: pd.DataFrame) -> pd.DataFrame:
 
 # --------------------------------------------------------------------------- #
 
-def extract_bus(trips_df: pd.DataFrame, export_columns: list) -> pd.DataFrame:
+def extract_bus(trips_df: pd.DataFrame) -> pd.DataFrame:
     bus_info_df = pd.json_normalize(trips_df['buses'])
     bus_info_df.columns = ['bus_prefix', 'b', 'is_accessible', 'timestamp', 'lat', 'lon', 'sv', 'is']
 
@@ -107,7 +107,7 @@ def main():
 
     info_df = _request(session)
     info_df = _format(info_df)
-    info_df = extract_bus(info_df, EXPORT_COLUMNS)
+    info_df = extract_bus(info_df)
 
     send_pubsub(info_df)
     upload(info_df[EXPORT_COLUMNS])
