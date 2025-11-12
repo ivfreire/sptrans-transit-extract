@@ -47,7 +47,7 @@ def _request(session) -> pd.DataFrame:
 
 # --------------------------------------------------------------------------- #
 
-def format(info_df: pd.DataFrame) -> pd.DataFrame:
+def _format(info_df: pd.DataFrame) -> pd.DataFrame:
     info_df.columns = ['route_id', 'trip_code', 'direction_id', 'to', 'from', 'bus_count', 'buses']
 
     trips_df = info_df.explode('buses').reset_index(drop=True)
@@ -106,7 +106,7 @@ def main():
     session = create_session()
 
     info_df = _request(session)
-    info_df = format(info_df)
+    info_df = _format(info_df)
     info_df = extract_bus(info_df, EXPORT_COLUMNS)
 
     send_pubsub(info_df)
