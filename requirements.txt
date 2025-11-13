@@ -1,6 +1,7 @@
-numpy==2.3.0
+numpy==2.2.6
 pandas==2.3.0
 pandas-gbq==0.29.1
 fastapi==0.115.12
 uvicorn==0.34.3
 google-cloud-pubsub==2.30.0
+pymongo==4.15.4

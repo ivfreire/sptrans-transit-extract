@@ -2,6 +2,7 @@
 #   Extracts data from Olho Aberto API.
 #   ===================================
 
+import os
 import json
 import requests
 from datetime import datetime
@@ -11,6 +12,8 @@ import pandas as pd
 import pandas_gbq as gbq
 
 from google.cloud import pubsub_v1
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 
 # =========================================================================== #
 
@@ -18,6 +21,8 @@ BASE_URL = 'https://olhovivo.sptrans.com.br/'
 EXPORT_COLUMNS = ['ingestion_time', 'route_id', 'trip_code', 'direction_id',
                   'bus_prefix', 'is_accessible', 'timestamp', 'lat', 'lon']
 SHARDS_COUNT = 10
+
+MONGODB_URI = os.getenv('MONGODB_URI')
 
 # --------------------------------------------------------------------------- #
 
@@ -92,13 +97,19 @@ def send_pubsub(buses_df: pd.DataFrame) -> None:
 
 # --------------------------------------------------------------------------- #
 
-def upload(info_df: pd.DataFrame) -> None:
+def upload_to_gbq(info_df: pd.DataFrame) -> None:
     gbq.to_gbq(
         info_df,
         destination_table='sptransit.transit.bus_position_v2',
         project_id='sptransit',
         if_exists='append'
     )
+
+# --------------------------------------------------------------------------- #
+
+def upload_to_mongodb(info_df: pd.DataFrame) -> None:
+    collection = MongoClient(MONGODB_URI)["transit"]["bus"]
+    collection.insert_many(info_df.to_dict("records"))
 
 # --------------------------------------------------------------------------- #
 
@@ -109,8 +120,8 @@ def main():
     info_df = _format(info_df)
     info_df = extract_bus(info_df)
 
-    send_pubsub(info_df)
-    upload(info_df[EXPORT_COLUMNS])
+    upload_to_gbq(info_df[EXPORT_COLUMNS])
+    upload_to_mongodb(info_df[EXPORT_COLUMNS])
 
 # --------------------------------------------------------------------------- #
 
